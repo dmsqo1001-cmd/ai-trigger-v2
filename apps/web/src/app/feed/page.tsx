@@ -1,14 +1,13 @@
 import { RequireAuth } from "@/components/require-auth";
 import { FeedAppShell } from "@/components/app-shell";
-import { getAlertsSorted, listChannels } from "@/lib/alerts";
+import { getAlertsByCreatedAtAsc } from "@/lib/alerts";
 
 export default function FeedPage() {
-  const alerts = getAlertsSorted();
-  const channels = listChannels();
+  const alerts = getAlertsByCreatedAtAsc();
 
   return (
     <RequireAuth>
-      <FeedAppShell alerts={alerts} channels={channels} />
+      <FeedAppShell alerts={alerts} />
     </RequireAuth>
   );
 }

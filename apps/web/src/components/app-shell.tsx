@@ -1,9 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Alert } from "@/types/alert";
-import { filterAlertsByChannel } from "@/lib/alerts";
 import { GradeBadge } from "@/components/grade-badge";
 import { LogoutButton } from "@/components/logout-button";
 
@@ -12,43 +11,91 @@ function formatKoTime(iso: string) {
     return new Date(iso).toLocaleString("ko-KR", {
       hour: "2-digit",
       minute: "2-digit",
-      second: "2-digit",
     });
   } catch {
     return iso;
   }
 }
 
+function triggerLabelByGrade(grade: Alert["newsGrade"]) {
+  if (grade === "S") return "SSS";
+  if (grade === "A") return "AAA";
+  if (grade === "B") return "BBB";
+  if (grade === "C") return "CCC";
+  return "FFF";
+}
+
+const gradeMenus: Alert["newsGrade"][] = ["S", "A", "B", "C", "F"];
+type SelectedChannel = "REALTIME" | Alert["newsGrade"];
+
+function TriggerWordmark() {
+  return (
+    <span className="font-bold tracking-tight">
+      <span className="text-white">AI </span>
+      <span className="text-[#34c37a]">TRIGGER</span>
+    </span>
+  );
+}
+
 export function FeedAppShell({
   alerts,
-  channels,
 }: {
   alerts: Alert[];
-  channels: string[];
 }) {
-  const [channel, setChannel] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(alerts[0]?.id ?? null);
+  const [selectedChannel, setSelectedChannel] =
+    useState<SelectedChannel>("REALTIME");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [channelsOpen, setChannelsOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
 
-  const filtered = useMemo(
-    () => filterAlertsByChannel(alerts, channel),
-    [alerts, channel],
+  const displayedAlerts = useMemo(
+    () =>
+      (selectedChannel === "REALTIME"
+        ? alerts
+        : alerts.filter((a) => a.newsGrade === selectedChannel)
+      ).sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      ),
+    [alerts, selectedChannel],
   );
 
+  const gradeCounts = useMemo(
+    () =>
+      gradeMenus.reduce<Record<Alert["newsGrade"], number>>(
+        (acc, g) => ({ ...acc, [g]: alerts.filter((a) => a.newsGrade === g).length }),
+        { S: 0, A: 0, B: 0, C: 0, F: 0 },
+      ),
+    [alerts],
+  );
+
+  useEffect(() => {
+    setSelectedId((prev) =>
+      displayedAlerts.some((a) => a.id === prev)
+        ? prev
+        : displayedAlerts.at(-1)?.id ?? null,
+    );
+  }, [displayedAlerts]);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+  }, [selectedChannel, displayedAlerts.length]);
+
   const selected =
-    filtered.find((a) => a.id === selectedId) ?? filtered[0] ?? null;
+    displayedAlerts.find((a) => a.id === selectedId) ??
+    displayedAlerts.at(-1) ??
+    null;
 
   function selectAlert(id: string) {
     setSelectedId(id);
     setSummaryOpen(true);
   }
 
-  function pickChannel(next: string | null) {
-    setChannel(next);
+  function pickFilter(next: SelectedChannel) {
+    setSelectedChannel(next);
     setChannelsOpen(false);
-    const nextList = filterAlertsByChannel(alerts, next);
-    setSelectedId(nextList[0]?.id ?? null);
   }
 
   return (
@@ -69,7 +116,9 @@ export function FeedAppShell({
           <span className="sr-only">채널 목록</span>
         </button>
         <div className="min-w-0 flex-1 text-center text-sm font-semibold truncate">
-          NEW TRIGGER
+          <Link href="/feed" className="no-underline">
+            <TriggerWordmark />
+          </Link>
         </div>
         <button
           type="button"
@@ -106,119 +155,166 @@ export function FeedAppShell({
         {/* Left channels */}
         <aside
           id="channel-drawer"
-          aria-label="채널"
+          aria-label="등급 채널"
           className={`z-40 flex w-56 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--sidebar)] max-lg:fixed max-lg:top-12 max-lg:bottom-0 max-lg:left-0 max-lg:w-60 max-lg:transition-transform lg:relative lg:top-auto ${
             channelsOpen ? "max-lg:translate-x-0" : "max-lg:-translate-x-full"
           }`}
         >
           <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2 pt-4">
             <p className="px-2 text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
-              채널
+              등급 채널
             </p>
             <button
               type="button"
-              onClick={() => pickChannel(null)}
-              className={`rounded px-2 py-1.5 text-left text-sm hover:bg-[var(--channel-hover)] ${
-                channel === null ? "bg-[var(--channel-hover)] text-white" : "text-[var(--muted)]"
+              onClick={() => pickFilter("REALTIME")}
+              className={`mb-1 flex items-center justify-between rounded px-3 py-2 text-left text-sm font-medium transition hover:bg-[var(--channel-hover)] ${
+                selectedChannel === "REALTIME"
+                  ? "bg-[var(--channel-hover)] text-white"
+                  : "text-[#c9ced6]"
               }`}
             >
-              # 전체 보기
-            </button>
-            {channels.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => pickChannel(c)}
-                className={`rounded px-2 py-1.5 text-left text-sm font-medium hover:bg-[var(--channel-hover)] ${
-                  channel === c
-                    ? "bg-[var(--channel-hover)] text-white"
-                    : "text-[#949ba4]"
+              <span># 실시간 채널</span>
+              <span
+                className={`rounded px-1.5 py-0.5 text-xs ${
+                  selectedChannel === "REALTIME"
+                    ? "bg-black/30 text-white"
+                    : "bg-black/20 text-[#c9ced6]"
                 }`}
               >
-                # {c}
+                {alerts.length}
+              </span>
+            </button>
+            {gradeMenus.map((grade) => (
+              <button
+                key={grade}
+                type="button"
+                onClick={() => pickFilter(grade)}
+                className={`flex items-center justify-between rounded px-3 py-2 text-left text-sm font-medium transition hover:bg-[var(--channel-hover)] ${
+                  selectedChannel === grade
+                    ? "bg-[var(--channel-hover)] text-white"
+                    : grade === "F"
+                      ? "text-red-300"
+                      : "text-[#c9ced6]"
+                }`}
+              >
+                <span># {grade} 등급</span>
+                <span
+                  className={`rounded px-1.5 py-0.5 text-xs ${
+                    selectedChannel === grade
+                      ? "bg-black/30 text-white"
+                      : "bg-black/20 text-[#c9ced6]"
+                  }`}
+                >
+                  {gradeCounts[grade]}
+                </span>
               </button>
             ))}
+            <p className="mt-3 px-3 text-xs leading-relaxed text-[var(--muted)]">
+              F 등급은 리스크 우세 또는 부정적 요소가 확인된 이벤트를 우선 표시합니다.
+            </p>
           </nav>
           <div className="border-t border-[var(--border)] p-2">
             <LogoutButton />
-            <Link
-              href="/admin"
-              className="mt-1 block rounded px-2 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--channel-hover)] hover:text-[var(--foreground)] no-underline"
-            >
-              관리자 (mock)
-            </Link>
           </div>
         </aside>
 
         {/* Center feed */}
         <main className="flex min-w-0 min-h-0 flex-1 flex-col bg-[var(--background)]">
           <header className="hidden h-14 shrink-0 items-center border-b border-[var(--border)] px-5 lg:flex">
-            <h1 className="text-lg font-semibold tracking-tight">NEW TRIGGER</h1>
+            <Link href="/feed" className="rounded px-1 py-0.5 text-lg font-semibold tracking-tight no-underline">
+              <TriggerWordmark />
+            </Link>
             <span className="ml-3 text-xs text-[var(--muted)]">
-              읽기 전용 · 시스템 알림만 표시됩니다 (MVP mock)
+              읽기 전용 실시간 피드
             </span>
           </header>
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-5">
-            {filtered.length === 0 ? (
+          <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5">
+            {displayedAlerts.length === 0 ? (
               <p className="py-16 text-center text-sm text-[var(--muted)]">
-                이 채널에는 알림이 없습니다.
+                선택한 등급에 해당하는 NEW TRIGGER 메시지가 없습니다.
               </p>
             ) : (
-              <ul className="flex flex-col gap-3" role="list">
-                {filtered.map((alert) => {
+              <ul className="flex flex-col gap-4" role="list">
+                {displayedAlerts.map((alert) => {
                   const isSel = selected?.id === alert.id;
-                  const triggerLabel = `${alert.newsGrade}${alert.newsGrade}${alert.newsGrade}`;
+                  const triggerLabel = triggerLabelByGrade(alert.newsGrade);
                   return (
                     <li key={alert.id}>
-                      <div
+                      <button
+                        type="button"
                         role="article"
-                        className={`flex gap-3 rounded-md border px-3 py-2 text-left transition-colors ${
+                        onClick={() => selectAlert(alert.id)}
+                        className={`w-full rounded-lg border px-4 py-4 text-left transition-colors ${
                           isSel
-                            ? "border-[var(--accent)] bg-[var(--sidebar)]"
-                            : "border-transparent bg-[var(--sidebar)] hover:border-[var(--border)] hover:bg-[#34373e]"
+                            ? "border-[#34c37a] bg-[var(--sidebar)]"
+                            : "border-[var(--border)] bg-[var(--sidebar)] hover:bg-[#2c313a]"
                         }`}
                       >
-                        <div className="mt-1 flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-bold text-white">
-                          AI
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="mb-1 flex flex-wrap items-center gap-2">
-                            <span className="font-semibold text-[var(--foreground)]">
-                              {triggerLabel}) NEW TRIGGER
+                        <div className="min-w-0 space-y-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold">
+                              <TriggerWordmark />
                             </span>
-                            <GradeBadge grade={alert.newsGrade} compact />
-                            <span className="text-xs text-[var(--muted)]">
-                              {formatKoTime(alert.createdAt)}
-                            </span>
+                            <span className="text-xs text-[var(--muted)]">{formatKoTime(alert.createdAt)}</span>
                           </div>
-                          <p className="text-sm text-[#dbdee1]">
-                            <span className="mr-2 font-mono font-semibold text-white">
-                              {alert.ticker}
-                            </span>
-                            {alert.latestNewsTitle}
+                          <p className="text-sm font-semibold text-[#d4af37]">
+                            {triggerLabel}) NEW TRIGGER
                           </p>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => selectAlert(alert.id)}
-                              className="rounded bg-[var(--accent)] px-3 py-1 text-xs font-medium text-white hover:brightness-110"
-                            >
-                              요약 패널
-                            </button>
+                          <p className="text-lg font-semibold text-white">
+                            {alert.ticker} · {alert.price}
+                          </p>
+                          <div className="space-y-1 text-sm text-[#dbdee1]">
+                            <p>NEWS : {alert.latestNewsTitle} [ {alert.newsGrade} ]</p>
+                            <p>RISK : {alert.secRiskForm.toLowerCase()} [ {alert.secRiskGrade} ]</p>
+                          </div>
+                          <div className="rounded-md border border-[var(--border)] bg-[#1a202c] p-3">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+                              <TriggerWordmark />
+                            </p>
+                            <p className="mt-2 text-sm leading-relaxed text-[#d7dbe2]">{alert.aiOneLine}</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <span className="rounded border border-[var(--border)] bg-[var(--sidebar-deep)] px-3 py-1 text-xs text-white">
+                              핵심 요약
+                            </span>
                             <Link
                               href={`/alert/${alert.id}`}
+                              onClick={(e) => e.stopPropagation()}
                               className="rounded border border-[var(--border)] px-3 py-1 text-xs text-[var(--foreground)] hover:bg-[var(--channel-hover)] no-underline"
                             >
-                              상세 페이지
+                              상세 분석
                             </Link>
                           </div>
                         </div>
-                      </div>
+                      </button>
                     </li>
                   );
                 })}
               </ul>
             )}
+            <div ref={endRef} />
+          </div>
+          <div className="border-t border-[var(--border)] bg-[var(--sidebar)] px-3 py-3 sm:px-5">
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--sidebar-deep)] p-3">
+              <textarea
+                disabled
+                rows={2}
+                value="AI TRIGGER 전용 읽기 채널입니다. 사용자는 메시지를 입력할 수 없습니다."
+                className="w-full resize-none rounded border border-[var(--border)] bg-[#111723] px-3 py-2 text-sm text-[var(--muted)]"
+              />
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <p className="text-xs text-[var(--muted)]">
+                  이 채널은 AI TRIGGER가 실시간 정보를 제공하는 읽기 전용 피드입니다.
+                </p>
+                <button
+                  type="button"
+                  disabled
+                  className="rounded bg-[#2f3542] px-3 py-1.5 text-xs font-semibold text-[#9aa1ab]"
+                >
+                  전송
+                </button>
+              </div>
+            </div>
           </div>
         </main>
 
@@ -236,22 +332,17 @@ export function FeedAppShell({
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
             {selected ? (
               <div className="space-y-3 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-lg font-bold">{selected.ticker}</span>
-                  <GradeBadge grade={selected.newsGrade} compact />
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--sidebar-deep)] p-3">
+                  <p className="text-xs text-[var(--muted)]">티커</p>
+                  <p className="mt-1 font-mono text-xl font-bold text-white">{selected.ticker}</p>
                 </div>
-                <p className="text-[var(--muted)] leading-relaxed">{selected.aiOneLine}</p>
                 <dl className="space-y-2 text-xs text-[#dbdee1]">
                   <div className="flex justify-between gap-2">
-                    <dt className="text-[var(--muted)]">가격</dt>
+                    <dt className="text-[var(--muted)]">현재가</dt>
                     <dd>{selected.price}</dd>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <dt className="text-[var(--muted)]">유동주식수</dt>
-                    <dd>{selected.floatShares}</dd>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    <dt className="text-[var(--muted)]">뉴스 강도</dt>
+                    <dt className="text-[var(--muted)]">뉴스 등급</dt>
                     <dd>
                       <GradeBadge grade={selected.newsGrade} compact />
                     </dd>
@@ -262,13 +353,11 @@ export function FeedAppShell({
                       <GradeBadge grade={selected.secRiskGrade} compact />
                     </dd>
                   </div>
-                  <div className="flex justify-between gap-2">
-                    <dt className="text-[var(--muted)]">숏 가능성</dt>
-                    <dd>
-                      <GradeBadge grade={selected.shortSqueezeGrade} compact />
-                    </dd>
-                  </div>
                 </dl>
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--sidebar-deep)] p-3">
+                  <p className="text-xs text-[var(--muted)]">TRIGGER AI 한줄평</p>
+                  <p className="mt-2 leading-relaxed text-[#d7dbe2]">{selected.aiOneLine}</p>
+                </div>
                 <Link
                   href={`/alert/${selected.id}`}
                   className="inline-block rounded bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-white hover:brightness-110 no-underline"

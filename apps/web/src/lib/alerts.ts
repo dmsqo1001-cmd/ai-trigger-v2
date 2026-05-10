@@ -7,6 +7,12 @@ export function getAlertsSorted(): Alert[] {
   );
 }
 
+export function getAlertsByCreatedAtAsc(): Alert[] {
+  return [...mockAlerts].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
+}
+
 export function listChannels(): string[] {
   const set = new Set(mockAlerts.map((a) => a.channel));
   return [...set].sort();
