@@ -1,0 +1,86 @@
+---
+alwaysApply: true
+---
+
+---
+alwaysApply: true
+---
+
+# Project Rules - AI TRIGGER
+
+## Service Goal
+This project is a web program for monitoring potential US stock day momentum runners.
+
+It does not provide buy/sell recommendations.
+It does not provide entry price, target price, stop loss, or guaranteed profit.
+
+The service provides:
+- watchlist detection
+- news event detection
+- SEC risk check
+- momentum persistence analysis
+- short squeeze possibility grade
+- live read-only trigger feed
+
+## Architecture
+- apps/web: Next.js + TypeScript + Tailwind web app
+- worker: Python data pipeline, added later
+- supabase: database schema, added later
+- docs: planning documents
+
+## MVP 1 Rule
+For MVP 1, do not connect real APIs.
+Use mock data only.
+
+Do not connect:
+- FMP
+- Massive
+- SEC
+- Gemini
+- Toss Payments
+- Supabase Auth
+- Google OAuth
+
+## UI Rule
+The web app should look like a Discord-style read-only live feed.
+Users cannot write messages.
+Only system/admin generated alerts are displayed.
+
+## Service Structure
+There is no free version.
+Before payment, users see the public landing page.
+After payment, users access the member-only trigger feed.
+For MVP 1, payment is not connected and mock login can be used.
+
+## Forbidden Words
+Do not use:
+- buy now
+- sell now
+- entry price
+- target price
+- stop loss
+- guaranteed profit
+- must buy
+- guaranteed rise
+
+Korean forbidden expressions:
+- 매수하세요
+- 매도하세요
+- 진입가
+- 목표가
+- 손절가
+- 무조건 상승
+- 수익 보장
+- 급등 확정
+
+## Allowed Expressions
+Use:
+- 당일 급등 후보
+- 이벤트 감지
+- SEC 리스크
+- 지속성 판단
+- 관찰 필요
+- 확인 범위 내 주요 리스크 미확인
+- 수급 민감도
+- 뉴스 강도
+- 리스크 등급
